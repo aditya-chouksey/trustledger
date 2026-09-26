@@ -31,7 +31,7 @@ let fabricLedger = new Map();
 let offChainDatabase = new Map();
 let iotDevicesDatabase = new Map();
 
-// Save data store to disk for true restart persistence (Phase 8)
+// Save data store to disk for true restart persistence
 function saveToDisk() {
   try {
     const data = {
@@ -63,9 +63,9 @@ function loadFromDisk() {
   return false;
 }
 
-// Seed initial default multi-sector assets into Fabric & Off-Chain Database if missing
+// Seed initial default multi-sector assets & devices if missing
 function seedInitialAssets() {
-  // 1. Agriculture Asset: AG-WHEAT-1024
+  // 1. Agriculture Asset: AG-WHEAT-1024 & ESP32-AG-001
   if (!offChainDatabase.has('AG-WHEAT-1024')) {
     const agData = {
       assetId: 'AG-WHEAT-1024',
@@ -108,8 +108,9 @@ function seedInitialAssets() {
 
     iotDevicesDatabase.set('ESP32-AG-001', {
       deviceId: 'ESP32-AG-001',
+      sector: 'Agriculture',
       associatedAssetId: 'AG-WHEAT-1024',
-      deviceType: 'SIMULATED IoT DEVICE (Agriculture Multi-Sensor Node)',
+      deviceType: 'SIMULATED IoT DEVICE',
       status: 'ACTIVE',
       lastSeen: '2 minutes ago',
       telemetry: {
@@ -120,7 +121,7 @@ function seedInitialAssets() {
     });
   }
 
-  // 2. Energy Asset: EN-REC-2048
+  // 2. Energy Asset: EN-REC-2048 & ESP32-EN-001
   if (!offChainDatabase.has('EN-REC-2048')) {
     const enData = {
       assetId: 'EN-REC-2048',
@@ -162,8 +163,9 @@ function seedInitialAssets() {
 
     iotDevicesDatabase.set('ESP32-EN-001', {
       deviceId: 'ESP32-EN-001',
+      sector: 'Energy',
       associatedAssetId: 'EN-REC-2048',
-      deviceType: 'SIMULATED IoT DEVICE (Energy Smart Meter)',
+      deviceType: 'SIMULATED IoT DEVICE',
       status: 'ACTIVE',
       lastSeen: '1 minute ago',
       telemetry: {
@@ -175,7 +177,7 @@ function seedInitialAssets() {
     });
   }
 
-  // 3. Mobility Asset: EV-BAT-7832
+  // 3. Mobility Asset: EV-BAT-7832 & ESP32-EV-001
   if (!offChainDatabase.has('EV-BAT-7832')) {
     const mobData = {
       assetId: 'EV-BAT-7832',
@@ -217,8 +219,9 @@ function seedInitialAssets() {
 
     iotDevicesDatabase.set('ESP32-EV-001', {
       deviceId: 'ESP32-EV-001',
+      sector: 'Mobility',
       associatedAssetId: 'EV-BAT-7832',
-      deviceType: 'SIMULATED IoT DEVICE (EV BMS Gateway)',
+      deviceType: 'SIMULATED IoT DEVICE',
       status: 'ACTIVE',
       lastSeen: 'Just now',
       telemetry: {
@@ -289,8 +292,9 @@ app.post('/api/assets/register', (req, res) => {
   if (!iotDevicesDatabase.has(devId)) {
     iotDevicesDatabase.set(devId, {
       deviceId: devId,
+      sector: sector,
       associatedAssetId: assetId,
-      deviceType: `SIMULATED IoT DEVICE (${sector} Sensor Node)`,
+      deviceType: 'SIMULATED IoT DEVICE',
       status: 'ACTIVE',
       lastSeen: 'Just now',
       telemetry: sector === 'Agriculture' 
@@ -331,7 +335,13 @@ app.get('/api/assets', (req, res) => {
   res.json({ assets });
 });
 
-// 3. Main Public Verification Endpoint: /api/verify/:assetId
+// 3. List all IoT devices
+app.get('/api/iot/devices', (req, res) => {
+  const devices = Array.from(iotDevicesDatabase.values());
+  res.json({ devices });
+});
+
+// 4. Main Public Verification Endpoint: /api/verify/:assetId
 app.get('/api/verify/:assetId', (req, res) => {
   const { assetId } = req.params;
 
@@ -405,7 +415,7 @@ app.get('/api/verify/:assetId', (req, res) => {
   });
 });
 
-// 4. Public IoT Device Verification Endpoint: /api/verify/device/:deviceId
+// 5. Public IoT Device Verification Endpoint: /api/verify/device/:deviceId
 app.get('/api/verify/device/:deviceId', (req, res) => {
   const { deviceId } = req.params;
   const dev = iotDevicesDatabase.get(deviceId);
@@ -429,55 +439,119 @@ app.get('/api/verify/device/:deviceId', (req, res) => {
   });
 });
 
-// 5. Phase 10 IoT Telemetry Ingestion Endpoint: /api/iot/telemetry
+// 6. Mandatory IoT Telemetry Ingestion Endpoint: POST /api/iot/telemetry
+// Flow: Simulated Device -> IoT API -> Validation -> SHA-256 -> Ledger/Event System -> Asset History
 app.post('/api/iot/telemetry', (req, res) => {
-  const { deviceId, telemetry } = req.body;
+  const { deviceId, assetId, sector, telemetry } = req.body;
 
+  // 1. Validate device exists
   const dev = iotDevicesDatabase.get(deviceId);
   if (!dev) {
-    return res.status(404).json({ error: `SIMULATED IoT DEVICE '${deviceId}' not found.` });
+    return res.status(404).json({ error: `Validation Failed: SIMULATED IoT DEVICE '${deviceId}' does not exist.` });
   }
 
-  // Update live telemetry & timestamp
+  // 2. Validate asset exists
+  const targetAssetId = assetId || dev.associatedAssetId;
+  const asset = offChainDatabase.get(targetAssetId);
+  if (!asset) {
+    return res.status(404).json({ error: `Validation Failed: Linked asset '${targetAssetId}' does not exist.` });
+  }
+
+  // 3. Validate device-asset relationship
+  if (dev.associatedAssetId !== targetAssetId) {
+    return res.status(400).json({ error: `Validation Failed: Device '${deviceId}' is not bound to asset '${targetAssetId}'.` });
+  }
+
+  // 4. Validate sector matches
+  if (sector && dev.sector && sector !== dev.sector) {
+    return res.status(400).json({ error: `Validation Failed: Sector mismatch. Device sector is '${dev.sector}', got '${sector}'.` });
+  }
+
+  // 5. Validate numeric measurements and reasonable ranges
+  if (!telemetry || typeof telemetry !== 'object') {
+    return res.status(400).json({ error: `Validation Failed: Telemetry must be an object of key-value readings.` });
+  }
+
+  for (const [key, rawVal] of Object.entries(telemetry)) {
+    // Parse numeric float from string (e.g., "24.6 °C" -> 24.6)
+    const num = parseFloat(String(rawVal).replace(/[^0-9.-]/g, ''));
+    if (isNaN(num)) {
+      return res.status(400).json({ error: `Validation Failed: Reading '${key}' value '${rawVal}' is not a valid number.` });
+    }
+
+    // Range checks per sensor
+    if (key.toLowerCase().includes('temp') && (num < -50 || num > 120)) {
+      return res.status(400).json({ error: `Validation Failed: Temperature ${num} °C is outside reasonable range (-50 to 120 °C).` });
+    }
+    if (key.toLowerCase().includes('humidity') && (num < 0 || num > 100)) {
+      return res.status(400).json({ error: `Validation Failed: Humidity ${num} % is outside reasonable range (0 to 100 %).` });
+    }
+    if (key.toLowerCase().includes('voltage') && (num < 0 || num > 2000)) {
+      return res.status(400).json({ error: `Validation Failed: Voltage ${num} V is outside reasonable range (0 to 2000 V).` });
+    }
+  }
+
+  // 6. Compute Cryptographic SHA-256 Hash of Telemetry Event Payload
+  const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  const eventId = 'EVT-IOT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+  const telemetryPayloadToHash = {
+    eventId,
+    deviceId,
+    associatedAssetId: targetAssetId,
+    sector: dev.sector,
+    timestamp,
+    readings: telemetry
+  };
+
+  const telemetryHash = calculateSHA256(telemetryPayloadToHash);
+
+  // 7. Update Live Device Status & Telemetry
   dev.telemetry = { ...dev.telemetry, ...telemetry };
   dev.lastSeen = 'Just now';
   dev.telemetryIntegrity = 'VERIFIED';
   iotDevicesDatabase.set(deviceId, dev);
 
-  // Append IoT Event to linked Asset Lifecycle History
-  const asset = offChainDatabase.get(dev.associatedAssetId);
+  // 8. Append Telemetry Event to Associated Asset's Lifecycle History
   if (asset && asset.lifecycle) {
+    const formattedReadings = Object.entries(telemetry).map(([k, v]) => `${k}: ${v}`).join(', ');
     const iotEvent = {
-      step: 'IOT_PING',
-      title: `Simulated Sensor Data Received (${Object.keys(telemetry).join(', ')})`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+      step: 'IOT_TELEMETRY',
+      title: `IoT Telemetry Received (${formattedReadings})`,
+      timestamp,
       actor: dev.deviceId,
-      txRef: 'TX-IOT-' + crypto.randomBytes(4).toString('hex').toUpperCase()
+      txRef: eventId,
+      eventId,
+      deviceId,
+      telemetryHash,
+      readings: telemetry
     };
     asset.lifecycle.push(iotEvent);
-    offChainDatabase.set(dev.associatedAssetId, asset);
+    offChainDatabase.set(targetAssetId, asset);
   }
 
   saveToDisk();
 
-  res.json({
+  return res.json({
     success: true,
-    message: `IoT reading recorded from SIMULATED DEVICE '${deviceId}'`,
+    statusText: 'Telemetry Accepted ✓',
+    message: 'Telemetry Accepted ✓',
+    telemetryHash,
+    eventId,
     deviceId,
-    associatedAssetId: dev.associatedAssetId,
+    associatedAssetId: targetAssetId,
     updatedTelemetry: dev.telemetry,
     telemetryIntegrity: 'VERIFIED'
   });
 });
 
-// 6. Phase 7 AI Asset Data Extraction Endpoint: /api/ai/parse
+// 7. AI Asset Data Extraction Endpoint: /api/ai/parse
 app.post('/api/ai/parse', (req, res) => {
   const { prompt } = req.body;
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // Heuristic AI Analysis & Data Structuring with Fallback Parser
   const lower = prompt.toLowerCase();
   let sector = 'Agriculture';
   let assetType = 'Organic Wheat Batch';
@@ -492,7 +566,6 @@ app.post('/api/ai/parse', (req, res) => {
     assetType = 'EV Lithium Battery Pack';
   }
 
-  // Extract quantity if present
   const qtyMatch = prompt.match(/(\d+\s*(kg|mwh|kwh|tons|units))/i);
   if (qtyMatch) {
     quantity = qtyMatch[1];
@@ -515,7 +588,7 @@ app.post('/api/ai/parse', (req, res) => {
   });
 });
 
-// 7. Demo Tamper Test Endpoint: /api/demo/tamper
+// 8. Demo Tamper Test Endpoint: /api/demo/tamper
 app.post('/api/demo/tamper', (req, res) => {
   const { assetId, field, value } = req.body;
   const targetId = assetId || 'AG-WHEAT-1024';
@@ -541,7 +614,7 @@ app.post('/api/demo/tamper', (req, res) => {
   });
 });
 
-// 8. Demo Restore Endpoint: /api/demo/restore
+// 9. Demo Restore Endpoint: /api/demo/restore
 app.post('/api/demo/restore', (req, res) => {
   const { assetId } = req.body;
   const targetId = assetId || 'AG-WHEAT-1024';

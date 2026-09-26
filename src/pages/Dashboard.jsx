@@ -129,12 +129,21 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowRegisterModal(true)}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Register New Asset
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/iot"
+              className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold px-3.5 py-2.5 rounded-xl text-xs border border-slate-700 transition-all"
+            >
+              <Cpu className="w-4 h-4 text-emerald-400" /> IoT Devices
+            </Link>
+
+            <button
+              onClick={() => setShowRegisterModal(true)}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Register New Asset
+            </button>
+          </div>
         </div>
       </header>
 

@@ -391,6 +391,32 @@ export default function PublicVerification() {
           </div>
         </div>
 
+        {/* Dynamic IoT Telemetry Event History Log */}
+        {data.lifecycle?.some(l => l.step === 'IOT_TELEMETRY' || l.step === 'IOT_PING') && (
+          <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-800/80 text-emerald-400 font-bold text-sm uppercase tracking-wider">
+              <Cpu className="w-4 h-4" /> IoT Sensor Telemetry Ledger Events
+            </div>
+
+            <div className="space-y-3">
+              {data.lifecycle.filter(l => l.step === 'IOT_TELEMETRY' || l.step === 'IOT_PING').map((event, i) => (
+                <div key={i} className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2">
+                  <div className="flex items-center justify-between text-slate-300 font-bold">
+                    <span className="text-emerald-400 font-semibold">{event.title}</span>
+                    <span className="text-[11px] text-slate-400">{event.timestamp}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-800/80 text-[11px]">
+                    <div><span className="text-slate-500">Device ID:</span> <span className="text-slate-200 font-bold">{event.actor}</span></div>
+                    <div><span className="text-slate-500">Event ID:</span> <span className="text-slate-200 font-bold">{event.eventId || event.txRef}</span></div>
+                    <div className="truncate"><span className="text-slate-500">Telemetry Hash:</span> <span className="text-emerald-300">{event.telemetryHash || 'SHA-256 Verified'}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* IoT Integration Card (Section 8 Requirement) */}
         {data.iotTelemetry && (
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
