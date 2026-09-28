@@ -641,6 +641,16 @@ app.post('/api/demo/restore', (req, res) => {
   });
 });
 
+// Serve frontend static files in production / single-service deployment
+const distPath = path.join(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`TrustLedger Hyperledger Fabric & Verification API Server running on port ${PORT}`);
 });
+
