@@ -1,29 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Cpu, 
-  Activity, 
-  Send, 
-  RefreshCw, 
-  CheckCircle2, 
-  ArrowLeft, 
-  ExternalLink, 
-  Sprout, 
-  Zap, 
-  Car, 
-  ShieldCheck, 
-  Hash, 
-  Layers
+import {
+  Cpu, Send, RefreshCw, CheckCircle2,
+  ExternalLink, Sprout, Zap, Car
 } from 'lucide-react';
+import Navbar from '../components/Navbar';
+
+const SECTOR_META = {
+  Agriculture: { icon: <Sprout className="w-3.5 h-3.5" />, color: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500' },
+  Energy:      { icon: <Zap    className="w-3.5 h-3.5" />, color: 'text-amber-600  dark:text-amber-400',   border: 'border-amber-500'   },
+  Mobility:    { icon: <Car    className="w-3.5 h-3.5" />, color: 'text-sky-600    dark:text-sky-400',     border: 'border-sky-500'     },
+};
 
 export default function IoTDevices() {
-  const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [devices, setDevices]             = useState([]);
+  const [loading, setLoading]             = useState(true);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  
-  // Dynamic live readings state for generator
   const [currentReadings, setCurrentReadings] = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState(null);
 
   const fetchDevices = async () => {
@@ -32,21 +26,15 @@ export default function IoTDevices() {
       const data = await res.json();
       const devList = data.devices || [];
       setDevices(devList);
-
-      // Select first device by default if none selected
-      if (!selectedDevice && devList.length > 0) {
-        selectDeviceHandler(devList[0]);
-      }
+      if (!selectedDevice && devList.length > 0) selectDeviceHandler(devList[0]);
     } catch (err) {
-      console.error('Error fetching IoT devices:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDevices();
-  }, []);
+  useEffect(() => { fetchDevices(); }, []);
 
   const selectDeviceHandler = (dev) => {
     setSelectedDevice(dev);
@@ -54,173 +42,122 @@ export default function IoTDevices() {
     setCurrentReadings({ ...dev.telemetry });
   };
 
-  // Generate realistic, varying sensor values
   const generateNewReading = () => {
     if (!selectedDevice) return;
     setSubmissionFeedback(null);
-
     const sec = selectedDevice.sector;
     if (sec === 'Agriculture') {
-      const temp = (20 + Math.random() * 10).toFixed(1); // 20.0 to 30.0 °C
-      const hum = Math.floor(50 + Math.random() * 25); // 50 to 75 %
       setCurrentReadings({
-        temperature: `${temp} °C`,
-        humidity: `${hum} %`
+        temperature: `${(20 + Math.random() * 10).toFixed(1)} °C`,
+        humidity:    `${Math.floor(50 + Math.random() * 25)} %`,
       });
     } else if (sec === 'Energy') {
-      const gen = Math.floor(480 + Math.random() * 50); // 480 to 530 MWh
-      const volt = (395 + Math.random() * 10).toFixed(1); // 395.0 to 405.0 V
-      const curr = (120 + Math.random() * 15).toFixed(1); // 120.0 to 135.0 A
       setCurrentReadings({
-        energyGenerated: `${gen} MWh`,
-        voltage: `${volt} V`,
-        current: `${curr} A`
+        energyGenerated: `${Math.floor(480 + Math.random() * 50)} MWh`,
+        voltage:         `${(395 + Math.random() * 10).toFixed(1)} V`,
+        current:         `${(120 + Math.random() * 15).toFixed(1)} A`,
       });
     } else {
-      // Mobility
-      const bTemp = (25 + Math.random() * 8).toFixed(1); // 25.0 to 33.0 °C
-      const volt = (390 + Math.random() * 15).toFixed(1); // 390.0 to 405.0 V
-      const soc = (95 + Math.random() * 4.9).toFixed(1); // 95.0 to 99.9 %
       setCurrentReadings({
-        batteryTemperature: `${bTemp} °C`,
-        voltage: `${volt} V`,
-        stateOfCharge: `${soc} %`
+        batteryTemperature: `${(25 + Math.random() * 8).toFixed(1)} °C`,
+        voltage:            `${(390 + Math.random() * 15).toFixed(1)} V`,
+        stateOfCharge:      `${(95 + Math.random() * 4.9).toFixed(1)} %`,
       });
     }
   };
 
-  // Submit telemetry through official IoT API flow
   const sendToTrustLedger = async () => {
     if (!selectedDevice) return;
     setSubmitting(true);
     setSubmissionFeedback(null);
-
     try {
       const res = await fetch('/api/iot/telemetry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deviceId: selectedDevice.deviceId,
-          assetId: selectedDevice.associatedAssetId,
-          sector: selectedDevice.sector,
-          telemetry: currentReadings
-        })
+          assetId:  selectedDevice.associatedAssetId,
+          sector:   selectedDevice.sector,
+          telemetry: currentReadings,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setSubmissionFeedback(data);
-        await fetchDevices(); // Refresh device state
+        await fetchDevices();
       } else {
         alert(data.error || 'Failed to submit telemetry');
       }
     } catch (err) {
-      console.error('Error submitting telemetry:', err);
+      console.error(err);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-emerald-500 selection:text-slate-950">
-      
-      {/* Top Navbar */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg shadow-emerald-950/40">
-              TL
-            </Link>
-            <div>
-              <div className="font-extrabold text-lg tracking-wider text-slate-100 flex items-center gap-2">
-                TRUSTLEDGER
-                <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  IoT Simulation Module
-                </span>
-              </div>
-              <div className="text-xs text-slate-400">Simulated Hardware Telemetry Engine</div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#070e1a] bg-grid text-slate-100 pb-20">
+      <Navbar />
 
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-400 font-semibold transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 space-y-8">
-
-        {/* Hero Header */}
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/30">
-          <div className="max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-              <Cpu className="w-3.5 h-3.5" /> Hardware Telemetry Bridge
-            </div>
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">
-              IoT Simulation Module
-            </h1>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              Generate real-time sensor measurements from simulated IoT nodes and validate telemetry hashes directly on the TrustLedger network.
-            </p>
+        {/* Page header */}
+        <div className="fade-up">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold uppercase tracking-wider mb-3">
+            <Cpu className="w-3 h-3" /> Hardware Telemetry Bridge
           </div>
+          <h1 className="text-2xl font-black tracking-tight text-gradient-brand">IoT Simulation Module</h1>
+          <p className="text-[13px] text-slate-400 mt-1 max-w-xl">
+            Generate sensor readings from simulated IoT nodes and submit telemetry hashes to the TrustLedger network.
+          </p>
         </div>
 
-        {/* 3 Devices Selector Grid */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-emerald-400" /> Active Simulated IoT Devices
-          </h2>
-
+        {/* Device selector */}
+        <div>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">Registered Devices</h2>
           {loading ? (
-            <div className="text-slate-400 text-sm text-center py-6">Loading IoT devices...</div>
+            <div className="text-slate-400 text-sm py-8 text-center">
+              <div className="w-5 h-5 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin mx-auto mb-2" />
+              Loading devices…
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {devices.map((dev) => {
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {devices.map((dev, i) => {
                 const isSelected = selectedDevice?.deviceId === dev.deviceId;
-                const isAgri = dev.sector === 'Agriculture';
-                const isEnergy = dev.sector === 'Energy';
-
+                const sm = SECTOR_META[dev.sector] || SECTOR_META.Agriculture;
                 return (
                   <div
                     key={dev.deviceId}
                     onClick={() => selectDeviceHandler(dev)}
-                    className={`glass-card rounded-2xl p-6 border transition-all cursor-pointer space-y-4 relative overflow-hidden ${
+                    className={`rounded-xl border cursor-pointer p-4 space-y-3 transition-all card-hover fade-up fade-up-delay-${Math.min(i+1,5)} ${
                       isSelected
-                        ? 'border-emerald-500 bg-slate-900/90 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500/50'
-                        : 'border-slate-800 hover:border-slate-700 bg-slate-900/60'
+                        ? `bg-slate-800/80 ${sm.border} ring-1 ring-current/20 shadow-lg glow-emerald-sm`
+                        : 'bg-[#0d1424] border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    {/* Explicit Required Badge */}
-                    <div className="inline-block px-2.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold text-[10px] uppercase tracking-wider">
-                      SIMULATED IoT DEVICE
-                    </div>
+                    {/* SIMULATED badge */}
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-400 font-mono">
+                      SIMULATED
+                    </span>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <div className="font-mono text-xl font-black text-slate-100">{dev.deviceId}</div>
-                        <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                          {isAgri && <Sprout className="w-3.5 h-3.5 text-emerald-400" />}
-                          {isEnergy && <Zap className="w-3.5 h-3.5 text-amber-400" />}
-                          {!isAgri && !isEnergy && <Car className="w-3.5 h-3.5 text-sky-400" />}
-                          <span className="font-semibold text-slate-200">{dev.sector} Sector</span>
-                        </div>
+                        <p className="font-mono text-lg font-black text-slate-100 leading-tight">{dev.deviceId}</p>
+                        <p className={`text-[11px] font-medium flex items-center gap-1 mt-0.5 ${sm.color}`}>
+                          {sm.icon} {dev.sector}
+                        </p>
                       </div>
-
-                      <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-ring mt-1 shrink-0" />
                     </div>
 
-                    <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 text-xs space-y-1">
-                      <div className="text-slate-500 font-medium">Bound Asset ID:</div>
-                      <div className="font-mono font-bold text-emerald-400">{dev.associatedAssetId}</div>
+                    <div className="bg-slate-900/60 rounded-lg border border-slate-800 px-2.5 py-2">
+                      <p className="text-[10px] text-slate-500 mb-0.5">Bound Asset</p>
+                      <p className="font-mono text-[11px] text-emerald-400 font-bold">{dev.associatedAssetId}</p>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-800">
                       <span>Status: <strong className="text-emerald-400">{dev.status}</strong></span>
-                      <span className="text-[11px] font-mono">{dev.lastSeen}</span>
+                      <span className="font-mono">{dev.lastSeen}</span>
                     </div>
                   </div>
                 );
@@ -229,101 +166,96 @@ export default function IoTDevices() {
           )}
         </div>
 
-        {/* Selected Device Interactive Detail & Telemetry Simulator Panel */}
-        {selectedDevice && (
-          <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-emerald-500/30 space-y-6 bg-slate-900/90 shadow-2xl">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-              <div>
-                <div className="inline-block px-3 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold text-xs uppercase tracking-wider mb-2">
-                  SIMULATED IoT DEVICE INTERACTION
-                </div>
-                <h3 className="text-2xl font-black font-mono text-slate-100 flex items-center gap-3">
-                  {selectedDevice.deviceId}
-                  <span className="text-xs font-sans font-semibold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-                    {selectedDevice.sector} Sector
+        {/* Selected device panel */}
+        {selectedDevice && (() => {
+          const sm = SECTOR_META[selectedDevice.sector] || SECTOR_META.Agriculture;
+          return (
+            <div className="bg-[#0d1424] rounded-xl border border-slate-800 overflow-hidden fade-up">
+              {/* Panel header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-800 bg-slate-900/40">
+                <div>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-400 font-mono mb-1.5">
+                    SIMULATED DEVICE INTERACTION
                   </span>
-                </h3>
-              </div>
-
-              <Link
-                to={`/assets/${selectedDevice.associatedAssetId}`}
-                className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 px-4 py-2 rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
-              >
-                View Bound Asset ({selectedDevice.associatedAssetId}) <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-
-            {/* Current Live Sensor Readings Display */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
-                Live Sensor Telemetry Measurements
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {Object.entries(currentReadings).map(([key, value]) => (
-                  <div key={key} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-1">
-                    <div className="text-slate-500 text-xs font-medium capitalize">
-                      {key.replace(/([A-Z])/g, ' $1')}
-                    </div>
-                    <div className="font-mono text-2xl font-black text-slate-100">{value}</div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-mono text-xl font-black text-slate-100">{selectedDevice.deviceId}</h3>
+                    <span className={`text-[11px] font-semibold flex items-center gap-1 ${sm.color}`}>
+                      {sm.icon} {selectedDevice.sector}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Interaction Buttons */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <button
-                onClick={generateNewReading}
-                className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-5 py-3 rounded-xl text-xs uppercase tracking-wider border border-slate-700 transition-all shadow-md cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4 text-emerald-400" /> Generate Sensor Reading
-              </button>
-
-              <button
-                onClick={sendToTrustLedger}
-                disabled={submitting}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" /> {submitting ? 'Submitting to Ledger...' : 'Send to TrustLedger'}
-              </button>
-            </div>
-
-            {/* Backend Response Submission Feedback Banner */}
-            {submissionFeedback && (
-              <div className="mt-4 p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-3 text-xs font-mono">
-                <div className="flex items-center gap-2 text-emerald-400 font-extrabold text-sm">
-                  <CheckCircle2 className="w-5 h-5" /> Telemetry Accepted ✓
                 </div>
+                <Link
+                  to={`/assets/${selectedDevice.associatedAssetId}`}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12px] font-medium bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition-colors shrink-0"
+                >
+                  {selectedDevice.associatedAssetId} <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
 
-                <div className="space-y-1.5 pt-2 border-t border-emerald-900/60 text-slate-300">
-                  <div>
-                    <span className="text-slate-500 font-semibold">Event ID:</span>{' '}
-                    <span className="font-bold text-slate-100">{submissionFeedback.eventId}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-semibold">Telemetry Hash (SHA-256):</span>{' '}
-                    <span className="font-bold text-emerald-300 break-all">{submissionFeedback.telemetryHash}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-semibold">Status:</span>{' '}
-                    <span className="text-emerald-400 font-bold">Anchored to {submissionFeedback.associatedAssetId} Lifecycle History</span>
+              <div className="p-5 space-y-5">
+                {/* Live readings */}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-3">Live Sensor Readings</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.entries(currentReadings).map(([key, val]) => (
+                      <div key={key} className="bg-slate-900 rounded-lg border border-slate-800 px-4 py-3">
+                        <p className="text-[11px] text-slate-500 capitalize mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
+                        <p className="font-mono text-xl font-black text-slate-100">{val}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="pt-2">
-                  <Link
-                    to={`/verify/${submissionFeedback.associatedAssetId}`}
-                    target="_blank"
-                    className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-bold"
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={generateNewReading}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
                   >
-                    View in Public Verification Asset Lifecycle <ExternalLink className="w-3 h-3" />
-                  </Link>
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-400" /> Generate Reading
+                  </button>
+                  <button
+                    onClick={sendToTrustLedger}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[12px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer disabled:opacity-40 shadow-sm shadow-emerald-600/20"
+                  >
+                    <Send className="w-3.5 h-3.5" /> {submitting ? 'Submitting…' : 'Send to TrustLedger'}
+                  </button>
                 </div>
+
+                {/* Submission feedback */}
+                {submissionFeedback && (
+                  <div className="bg-emerald-950/30 rounded-lg border border-emerald-500/25 p-4 space-y-3 scale-in glow-emerald-sm">
+                    <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                      <CheckCircle2 className="w-4 h-4" /> Telemetry Accepted ✓
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono text-slate-300 pt-3 border-t border-emerald-900/50">
+                      <div>
+                        <span className="text-slate-500">Event ID </span>
+                        <span className="font-bold text-slate-100">{submissionFeedback.eventId}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Integrity </span>
+                        <span className="text-emerald-400 font-bold">{submissionFeedback.telemetryIntegrity} ✓</span>
+                      </div>
+                      <div className="sm:col-span-2 break-all">
+                        <span className="text-slate-500">SHA-256 Hash </span>
+                        <span className="text-emerald-300">{submissionFeedback.telemetryHash}</span>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/verify/${submissionFeedback.associatedAssetId}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:underline font-medium"
+                    >
+                      View lifecycle on verify page <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
       </main>
     </div>
